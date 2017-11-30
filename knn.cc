@@ -33,26 +33,41 @@ public:
     mainProxy = thisProxy;
     knnProxy  = CProxy_KNN::ckNew(m, n, k, V, CkNumPes());
 
-    delete V;
+//    delete V;
   }
 };
 
 class KNN : public CBase_KNN {
-  int m, n, k, *V;
+  int m, n, k, *V, *out;
 public:
   KNN(CkMigrateMessage *m) {}
 
   KNN(int m_, int n_, int k_, int *V_)
     : m(m_), n(n_), k(k_), V(V_) {
-    thisProxy.start();
+    thisProxy[thisIndex].start();
   }
 
   void start(void) {
-    int *out;
+    CkCallback *cb = new CkCallback(CkIndex_KNN::done(), CkArrayIndex1D(thisIndex), thisArrayID);
 
-    CkCallback cb(CkCallback::ckExit);
+    kernelSetup(cb, thisIndex, m, n, k, V, out);
+  }
 
-    kernelSetup(&cb, thisIndex, m, n, k, V, out);
+  void done() {
+    showResult();
+
+    contribute(CkCallback(CkCallback::ckExit));
+  }
+  
+  void showResult() {
+  	for(int i=0; i<m; i++) {
+  		for(int j=0; j<k; j++) {
+  			printf("%d ", out[i*k+j]);
+  			if(j == k-1) {
+  				printf("\n");
+  			}
+  		}
+  	}
   }
 };
 

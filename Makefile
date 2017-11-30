@@ -12,16 +12,16 @@ CCFLAGS = -g
 F77FLAGS = -g
 FCFLAGS = -g
 
-NVCC_FLAGS := $(NVCC_FLAGS) -DGPU_MEMPOOL
+NVCC_FLAGS := $(NVCC_FLAGS) -g -DGPU_MEMPOOL
 
 CHARMC=$(CHARM_HOME)/bin/charmc $(CXXFLAGS) $(OPTS)
 OBJS=knn.o kernel.o
 
 # Please fill the execution path of your program here:
-EXEC_PATH = 
+EXEC_PATH =
 
 # Please put hostnames in a file and set the file name in HOST_FILE:
-HOST_FILE =            
+HOST_FILE =
 
 # Default target.  Always build the C example.  Only build the others
 # if Open MPI was build with the relevant language bindings.
@@ -47,4 +47,3 @@ run: $(MAIN)
 
 clean:
 	rm -f $(MAIN) *~ *.o *.decl.h *.def.h charmrun
-

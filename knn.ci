@@ -10,5 +10,6 @@ mainmodule knn {
     entry KNN(int m, int n, int k, int V[m*n]);
 
     entry void start(void);
+    entry void done(void);
   }
 }
