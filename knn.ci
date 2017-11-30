@@ -4,8 +4,6 @@ mainmodule knn {
 
   mainchare Main {
     entry Main(CkArgMsg *m);
-
-    entry [reductiontarget] void done(void);
   }
 
   array [1D] KNN {

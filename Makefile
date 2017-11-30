@@ -7,12 +7,14 @@ FC = mpif90
 
 # Compiler flags
 CFLAGS = -g -lcudart -L$(CUDATOOLKIT_HOME)/lib64 -lrt -lstdc++
-CXXFLAGS = -g
+CXXFLAGS = -g -std=c++11
 CCFLAGS = -g
 F77FLAGS = -g
 FCFLAGS = -g
 
-CHARMC=$(CHARM_HOME)/bin/charmc -std=c++11
+NVCC_FLAGS := $(NVCC_FLAGS) -DGPU_MEMPOOL
+
+CHARMC=$(CHARM_HOME)/bin/charmc $(CXXFLAGS) $(OPTS)
 OBJS=knn.o kernel.o
 
 # Please fill the execution path of your program here:
@@ -38,7 +40,7 @@ knn: $(OBJS)
 	$(CHARMC) -language charm++ -o knn $(OBJS)
 
 kernel.o: kernel.cu
-	nvcc -o kernel.o -c kernel.cu -lpthread -arch=sm_20
+	nvcc -o kernel.o -c kernel.cu -lpthread $(NVCC_FLAGS)
 
 run: $(MAIN)
 	/usr/local/bin/mpirun -np 2 -hostfile $(HOST_FILE) --mca btl_tcp_if_include eth0 --mca orte_default_hostname $(HOST_FILE) $(EXEC_PATH)/main $(IN) > $(OUT)

@@ -4,6 +4,8 @@
 #include<time.h>
 #include<cuda.h>
 
+#include "wr.h"
+
 #define INIT_MAX 10000000
 #define TILE_WIDTH 32
 #define TILE_DEPTH 128
@@ -248,4 +250,92 @@ void launch(int id, int m, int n, int k, int *V, int *out)
 	cudaFree(d_out);
 	cudaFree(D);
 
+}
+
+void run_knn(workRequest *wr, cudaStream_t kernelStream, void **deviceBuffers) {
+  int *data = (int *) deviceBuffers[wr->bufferInfo[3].bufferID];
+
+  int m = data[0], n = data[1], k = data[2], tid = data[3];
+
+  printf("computeDist Kernel\n");
+
+  computeDist<<<wr->dimGrid, wr->dimBlock, wr->smemSize, kernelStream>>>
+    (tid, m, n,
+    (int *) deviceBuffers[wr->bufferInfo[0].bufferID],	// d_V
+    (int *) deviceBuffers[wr->bufferInfo[2].bufferID]);	// d_D
+
+  cudaDeviceSynchronize();
+
+  printf("KNN Kernel\n");
+
+  int threadNum = (m<MAX_BLOCK_SIZE) ? m: MAX_BLOCK_SIZE;
+  knn<<<(m/2), threadNum, wr->smemSize, kernelStream>>>
+    (tid, m, k,
+    (int *) deviceBuffers[wr->bufferInfo[0].bufferID],  // d_V
+    (int *) deviceBuffers[wr->bufferInfo[2].bufferID],  // d_D
+    (int *) deviceBuffers[wr->bufferInfo[1].bufferID]); // d_out
+}
+
+void kernelSetup(void *cb, int tid, int m, int n, int k, int* h_A, int* &h_B) {	
+  int gridDimX = (int)(ceil((float)m/TILE_WIDTH));
+  int gridDimY = (int)(ceil((float)m/TILE_WIDTH));
+  int ptrNumInSMEM = (m<MAX_PTRNUM_IN_SMEM)? m: MAX_PTRNUM_IN_SMEM;
+
+  workRequest *wr = new workRequest;
+	
+  wr->dimGrid    = dim3(gridDimX, gridDimY);
+  wr->dimBlock   = dim3(TILE_WIDTH, TILE_WIDTH);
+  wr->smemSize   = 2*ptrNumInSMEM*sizeof(int);
+  wr->nBuffers   = 4;
+  wr->bufferInfo = new dataInfo[wr->nBuffers];
+  wr->callbackFn = cb; 
+  wr->traceName  = "knn";
+  wr->runKernel  = run_knn;
+
+  // Setup the input buffer (host -> device, size m x n)
+  dataInfo &info = wr->bufferInfo[0];
+
+  info.transferToDevice   = true;
+  info.transferFromDevice = false;
+  info.freeBuffer 	  = true;
+
+  info.size = m*n*sizeof(int);
+  info.hostBuffer = hapi_poolMalloc(info.size);
+
+  memcpy(info.hostBuffer, h_A, info.size);
+
+  // Setup the output buffer (device -> host, stores in h_B, (m/numPEs) x k)
+  info = wr->bufferInfo[1];
+
+  info.size = (m/2)*k*sizeof(int);
+  info.transferFromDevice = true;
+  info.hostBuffer = hapi_poolMalloc(info.size);
+
+  h_B = (int*) info.hostBuffer;
+
+  // Setup the distance buffer (device only)
+  info = wr->bufferInfo[2];
+
+  info.freeBuffer	  = true;
+  info.transferFromDevice = false;
+  info.transferToDevice   = false;
+
+  info.size = (m/2)*m*sizeof(int);
+
+  // Populate the user data buffer
+  int h_data[] = { m, n, k, tid };
+
+  info = wr->bufferInfo[3];
+
+  info.transferToDevice   = true;
+  info.transferFromDevice = false;
+  info.freeBuffer         = true;
+
+  info.size = 4*sizeof(int);
+  info.hostBuffer = hapi_poolMalloc(info.size);
+
+  memcpy(info.hostBuffer, h_data, info.size);
+
+  // Enqueue the Launch
+  enqueue(wr);
 }

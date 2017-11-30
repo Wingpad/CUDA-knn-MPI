@@ -35,10 +35,6 @@ public:
 
     delete V;
   }
-
-  void done(void) {
-
-  }
 };
 
 class KNN : public CBase_KNN {
@@ -52,11 +48,11 @@ public:
   }
 
   void start(void) {
-    int* out = new int[m*k];
+    int *out;
 
-    launch(thisIndex, m, n, k, V, out);
+    CkCallback cb(CkCallback::ckExit);
 
-    delete out;
+    kernelSetup(&cb, thisIndex, m, n, k, V, out);
   }
 };
 
