@@ -6,11 +6,14 @@ F77 = mpif77
 FC = mpif90
 
 # Compiler flags
-CFLAGS = -g -lcudart -L/usr/local/cuda/lib64 -lrt
+CFLAGS = -g -lcudart -L$(CUDATOOLKIT_HOME)/lib64 -lrt -lstdc++
 CXXFLAGS = -g
 CCFLAGS = -g
 F77FLAGS = -g
 FCFLAGS = -g
+
+CHARMC=$(CHARM_HOME)/bin/charmc -std=c++11
+OBJS=knn.o kernel.o
 
 # Please fill the execution path of your program here:
 EXEC_PATH = 
@@ -25,6 +28,15 @@ all: $(MAIN)
 
 $(MAIN): $(MAIN).c kernel.o
 
+knn.decl.h knn.def.h: knn.ci
+	$(CHARMC) knn.ci
+
+knn.o: knn.cc knn.decl.h knn.def.h
+	$(CHARMC) -c knn.cc
+
+knn: $(OBJS)
+	$(CHARMC) -language charm++ -o knn $(OBJS)
+
 kernel.o: kernel.cu
 	nvcc -o kernel.o -c kernel.cu -lpthread -arch=sm_20
 
@@ -32,5 +44,5 @@ run: $(MAIN)
 	/usr/local/bin/mpirun -np 2 -hostfile $(HOST_FILE) --mca btl_tcp_if_include eth0 --mca orte_default_hostname $(HOST_FILE) $(EXEC_PATH)/main $(IN) > $(OUT)
 
 clean:
-	rm -f $(MAIN) *~ *.o
+	rm -f $(MAIN) *~ *.o *.decl.h *.def.h charmrun
 

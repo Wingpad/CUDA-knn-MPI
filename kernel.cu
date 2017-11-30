@@ -8,7 +8,7 @@
 #define TILE_WIDTH 32
 #define TILE_DEPTH 128
 #define MAX_BLOCK_SIZE 256
-#define MAX_PTRNUM_IN_SMEM 1024 
+#define MAX_PTRNUM_IN_SMEM 1024
 
 // compute the square of distance of the ith point and jth point
 __global__ void computeDist(int id, int m, int n, int *V, int *D)
@@ -24,7 +24,7 @@ __global__ void computeDist(int id, int m, int n, int *V, int *D)
 	int row;
 	int col;
 	int px;
-	int py;	
+	int py;
 
 	for(py=ty; py<TILE_WIDTH; py+=blockDim.y)
 	{
@@ -34,7 +34,7 @@ __global__ void computeDist(int id, int m, int n, int *V, int *D)
 			col = bx*TILE_WIDTH+px;
 			dist[py][px] = 0;
 			__syncthreads();
-		
+
 			if(row >= id*(m/2) && row < (id+1)*(m/2))
 			{
 
@@ -45,18 +45,18 @@ __global__ void computeDist(int id, int m, int n, int *V, int *D)
 						rowVector[py][j] = V[row*n+i*TILE_DEPTH+j];
 					}
 					for(int j=ty; j<TILE_DEPTH; j+=blockDim.y)
-					{		
+					{
 						colVector[j][px] = V[col*n+i*TILE_DEPTH+j];
 					}
 					__syncthreads();
-			
+
 					for(int j=0; j<TILE_DEPTH; j++)
 					{
 						dist[py][px] += (rowVector[py][j]-colVector[j][px])*(rowVector[py][j]-colVector[j][px]);
 					}
 					__syncthreads();
 				}
-				
+
 				if(row >= (m/2))
 				{
 					row -= (m/2);
@@ -80,7 +80,7 @@ __device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 	int resultValue = INIT_MAX;
 	int resultIndex = INIT_MAX;
 	int indexBase = (m<MAX_PTRNUM_IN_SMEM)? m: MAX_PTRNUM_IN_SMEM;
-	
+
 	for(int num=0; num<m; num+=MAX_PTRNUM_IN_SMEM)
 	{
 		for(int j=tid; j<indexBase; j+=blockDim.x)
@@ -118,12 +118,12 @@ __device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 			__syncthreads();
 		}
 		__syncthreads();
-//		for(s=indexBase/2; s>0; s>>=1) 
-		for(s=indexBase/2; s>32; s>>=1) 
+//		for(s=indexBase/2; s>0; s>>=1)
+		for(s=indexBase/2; s>32; s>>=1)
 		{
 			for(int j=tid; j<indexBase; j+=blockDim.x)
 			{
-				if(j < s) 
+				if(j < s)
 				{
 					if(SMem[j] == SMem[j+s])
 					{
@@ -146,7 +146,7 @@ __device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 		{
 			#pragma unroll 5
 			for(s=32; s>0; s>>=1)
-			{ 
+			{
 				if(SMem[tid] == SMem[tid+s])
 				{
 					if(SMem[indexBase+tid] > SMem[indexBase+tid+s])
@@ -161,7 +161,7 @@ __device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 				}
 			}
 		}
-	
+
 		__syncthreads();
 		if(resultValue == SMem[0])
 		{
@@ -169,7 +169,7 @@ __device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 			{
 				resultIndex = SMem[indexBase];
 			}
-		} 
+		}
 		else if (resultValue > SMem[0])
 		{
 			resultValue = SMem[0];
@@ -209,10 +209,10 @@ void beforeStart(const char* hostname){
 		break;
 	}
 	cudaFree(dA);
-	printf("you get device %d on %s\n", BDorNot, hostname);
+// printf("you get device %d on %s\n", BDorNot, hostname);
 }
 
-extern "C"
+// extern "C"
 void launch(int id, int m, int n, int k, int *V, int *out)
 {
 	int *d_V, *d_out;			// device copies
@@ -222,27 +222,27 @@ void launch(int id, int m, int n, int k, int *V, int *out)
 	cudaMalloc((void **)&d_V, m*n*sizeof(int));
 	cudaMalloc((void **)&D, (m/2)*m*sizeof(int));
 	cudaMalloc((void **)&d_out, (m/2)*k*sizeof(int));
-	
+
 	// copy host values to devices copies
 	cudaMemcpy(d_V, V, m*n*sizeof(int), cudaMemcpyHostToDevice);
-	
+
 	int gridDimX = (int)(ceil((float)m/TILE_WIDTH));
 	int gridDimY = (int)(ceil((float)m/TILE_WIDTH));
-	
+
 	dim3 grid(gridDimX, gridDimY);
 	dim3 block(TILE_WIDTH, TILE_WIDTH);
-	
+
 	// launch knn() kernel on GPU
 	computeDist<<<grid, block>>>(id, m, n, d_V, D);
 	cudaDeviceSynchronize();
-	
+
 	int threadNum = (m<MAX_BLOCK_SIZE)? m: MAX_BLOCK_SIZE;
 	int ptrNumInSMEM = (m<MAX_PTRNUM_IN_SMEM)? m: MAX_PTRNUM_IN_SMEM;
 	knn<<<(m/2), threadNum, 2*ptrNumInSMEM*sizeof(int)>>>(id, m, k, d_V, D, d_out);
-	
+
 	// copy result back to host
 	cudaMemcpy(out+(m/2)*k*id, d_out, (m/2)*k*sizeof(int), cudaMemcpyDeviceToHost);
-	
+
 	// cleanup
 	cudaFree(d_V);
 	cudaFree(d_out);

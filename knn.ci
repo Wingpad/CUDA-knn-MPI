@@ -1,0 +1,16 @@
+mainmodule knn {
+  readonly CProxy_KNN  knnProxy;
+  readonly CProxy_Main mainProxy;
+
+  mainchare Main {
+    entry Main(CkArgMsg *m);
+
+    entry [reductiontarget] void done(void);
+  }
+
+  array [1D] KNN {
+    entry KNN(int m, int n, int k, int V[m*n]);
+
+    entry void start(void);
+  }
+}
